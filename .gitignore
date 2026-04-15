@@ -1,0 +1,24 @@
+# Virtual environment — never commit this
+.venv/
+
+# Secrets — never commit this
+.env
+
+# Simulation save files — these are runtime state, not code
+simulation.db
+simulation.db-shm
+simulation.db-wal
+gilded_void_state.json
+
+# Ancestral memory database — large and runtime-generated
+ancestral_memory/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# OS files
+.DS_Store
+Thumbs.db

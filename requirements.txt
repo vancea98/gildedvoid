@@ -1,0 +1,6 @@
+langgraph
+langgraph-checkpoint-sqlite
+langchain-core
+chromadb
+python-telegram-bot
+ollama
