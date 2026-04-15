@@ -86,14 +86,26 @@ It only contacts the Architect when specific thresholds are crossed:
 
 ---
 
+## The Files
+
+| File | What it does |
+|---|---|
+| `telegram_bridge.py` | Bot setup, commands, `SimulationContext` shared state |
+| `threshold_events.py` | Detects Extinction Prayer and Esoteric Breakthrough |
+| `run.py` | Wraps the ch04 simulation with the async bot layer |
+
+Note: `run.py` only defines what's *new* here — the context-aware node wrappers and
+the async loop. All base simulation logic is imported from previous chapters.
+
+---
+
 ## Running It
 
 ```powershell
 python -m chapter_05.run
 ```
 
-The first time, it will ask you to confirm your `.env` file is set up.
-Then the simulation starts and the bot goes live.
+The simulation starts and the bot goes live simultaneously.
 Send `/status` to your bot on Telegram to confirm it's working.
 
 ---

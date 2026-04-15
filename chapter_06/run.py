@@ -1,11 +1,21 @@
 """
-Chapter 06 - The Gilded Void v0.1 — Main Entry Point
+Chapter 06 - The Gilded Void v0.1
+
+The capstone. Everything from previous chapters plus:
+  - Two civilizations running simultaneously
+  - The Hollow Throne (a contested goal both civs fight over)
+  - Three-tier agents: Sovereign (4b), Chronicles (1b), Echoes (1b)
+  - Optional Telegram interface
+
+This file is self-contained — it doesn't import run logic from previous chapters,
+only their reusable components (nodes, memory, agents). That way you can read
+this file alone and understand the complete simulation.
 
 Usage:
-  python -m chapter_06.run                 ← run without Telegram
-  python -m chapter_06.run --telegram      ← run with Telegram interface
-  python -m chapter_06.run --reset         ← start fresh (keeps ancestral memory)
-  python -m chapter_06.run --wipe-memory   ← also wipe ancestral memory
+  python -m chapter_06.run                    ← terminal only
+  python -m chapter_06.run --telegram         ← with Telegram
+  python -m chapter_06.run --reset            ← start fresh
+  python -m chapter_06.run --reset --wipe-memory
 """
 
 import asyncio
@@ -14,30 +24,24 @@ import time
 import os
 
 from chapter_02.world_state import create_initial_state
-from chapter_06.gilded_void import (
-    CIV_NAMES,
-    HollowThrone,
-    run_tick,
-    collapse_civilization,
-)
-
+from chapter_04.memory_store import wipe_memories
+from chapter_06.gilded_void import CIV_NAMES, HollowThrone, run_tick, collapse_civilization
 
 TICK_DELAY = 2.5
-SAVE_FILE = "gilded_void_state.json"  # simple JSON save for the dual-civ setup
 
 
-def print_world(civ_states: dict, throne, tick: int):
-    """Prints a readable tick summary for both civilizations."""
-    print(f"\n{'═' * 60}")
-    print(f"  YEAR {tick}  │  {throne.status()}")
-    print(f"{'═' * 60}")
+# ── Display ───────────────────────────────────────────────────────────────────
 
+def print_world(civ_states: dict, throne: HollowThrone, tick: int):
+    print(f"\n{'═' * 64}")
+    print(f"  YEAR {tick:<6} │  {throne.status()}")
+    print(f"{'═' * 64}")
     for name in CIV_NAMES:
         s = civ_states[name]
         stab = s.get("stability", 0)
         bar = "█" * int(stab * 15) + "░" * (15 - int(stab * 15))
-        throne_marker = " 👑" if throne.holder == name else ""
-        print(f"\n  {name}{throne_marker}")
+        crown = " 👑" if throne.holder == name else ""
+        print(f"\n  {name}{crown}")
         print(f"  Pop: {s.get('population', 0):>7,}  │  Food: {s.get('food_supply', 0):>7,}  │  [{bar}] {stab:.0%}")
         decision = s.get("sovereign_last_decision", "")
         if decision:
@@ -46,46 +50,46 @@ def print_world(civ_states: dict, throne, tick: int):
             print(f"    {entry}")
 
 
-def run_without_telegram(reset: bool, wipe_memory: bool):
-    """Runs the simulation in simple terminal mode."""
+# ── Fresh state for a named civilization ──────────────────────────────────────
 
-    if wipe_memory:
-        from chapter_04.memory_store import wipe_memories
+def new_civ_state(name: str, era: int, trauma_ideology: str = "") -> dict:
+    state = create_initial_state()
+    if trauma_ideology:
+        state["sovereign_ideology"] = trauma_ideology
+        state["log"] = [f"Era {era}, Year 1: {name} is reborn. Something inherited from the past stirs uneasily."]
+    else:
+        state["log"] = [f"Era {era}, Year 1: {name} awakens. The hollow throne stands empty."]
+    return state
+
+
+# ── Terminal mode ─────────────────────────────────────────────────────────────
+
+def run_terminal(reset: bool, wipe_mem: bool):
+    if wipe_mem:
         wipe_memories()
 
-    print("=" * 60)
+    print("=" * 64)
     print("  THE GILDED VOID v0.1")
-    print("  Two civilizations. One throne. The Architect watches.")
-    print("=" * 60)
-    print("Press Ctrl+C to pause.\n")
+    print("  Two civilizations. One hollow throne. The Architect watches.")
+    print("=" * 64)
+    print("  Press Ctrl+C to pause.\n")
 
     throne = HollowThrone()
     era = 1
-
-    # Initialize both civilizations
-    civ_states = {}
-    for name in CIV_NAMES:
-        state = create_initial_state()
-        state["log"] = [f"Year 1: {name} awakens. The throne stands empty."]
-        civ_states[name] = state
+    civ_states = {name: new_civ_state(name, era) for name in CIV_NAMES}
+    decrees = {name: None for name in CIV_NAMES}
 
     try:
         tick = 1
         while True:
-            # Check for collapses
+            # Handle collapses before the next tick
             for name in CIV_NAMES:
                 if civ_states[name].get("stability", 1.0) <= 0.05:
                     new_state = collapse_civilization(name, civ_states[name], era)
-                    new_state["log"] = [
-                        f"Year 1: {name} is reborn from the ashes. Something feels wrong."
-                    ]
                     civ_states[name] = new_state
                     era += 1
 
-            # Run one tick (no decrees in terminal mode — use Telegram for that)
-            decrees = {name: None for name in CIV_NAMES}
             civ_states = run_tick(civ_states, throne, decrees, era)
-
             print_world(civ_states, throne, tick)
             tick += 1
             time.sleep(TICK_DELAY)
@@ -94,74 +98,89 @@ def run_without_telegram(reset: bool, wipe_memory: bool):
         print("\n\n[PAUSED] The Architect steps away. The world holds its breath.")
 
 
-async def run_with_telegram(reset: bool, wipe_memory: bool):
-    """Runs the simulation with the Telegram interface active."""
-    from chapter_05.telegram_bridge import SimulationContext, build_bot, load_config, send_notification
+# ── Telegram mode ─────────────────────────────────────────────────────────────
 
-    if wipe_memory:
-        from chapter_04.memory_store import wipe_memories
+async def run_telegram(reset: bool, wipe_mem: bool):
+    from chapter_05.telegram_bridge import SimulationContext, build_bot, load_config, send_notification
+    from chapter_05.threshold_events import check_threshold_events
+
+    if wipe_mem:
         wipe_memories()
 
-    token, admin_id = load_config()
+    _, admin_id = load_config()
     context = SimulationContext()
     bot_app = build_bot(context, admin_id)
 
-    print("=" * 60)
-    print("  THE GILDED VOID v0.1 (with Telegram)")
-    print("=" * 60)
+    print("=" * 64)
+    print("  THE GILDED VOID v0.1 — with Telegram")
+    print(f"  Admin ID: {admin_id}  |  Send /help to your bot.")
+    print("=" * 64)
 
     await bot_app.initialize()
     await bot_app.start()
     await bot_app.updater.start_polling()
-
-    await send_notification(
-        bot_app, admin_id,
-        "🔱 *The Gilded Void awakens.*\n\nTwo civilizations compete for the hollow throne.\nSend /help for commands."
+    await send_notification(bot_app, admin_id,
+        "🔱 *The Gilded Void awakens.*\n"
+        "Two civilizations — *Valdris* and *Sorreth* — compete for the hollow throne.\n"
+        "Send /help for commands."
     )
 
     throne = HollowThrone()
     era = 1
-    civ_states = {}
-    for name in CIV_NAMES:
-        state = create_initial_state()
-        state["log"] = [f"Year 1: {name} awakens."]
-        civ_states[name] = state
+    civ_states = {name: new_civ_state(name, era) for name in CIV_NAMES}
 
     try:
         tick = 1
         while True:
-            # Check for collapses
+            # Handle collapses
             for name in CIV_NAMES:
                 if civ_states[name].get("stability", 1.0) <= 0.05:
-                    await send_notification(
-                        bot_app, admin_id,
+                    await send_notification(bot_app, admin_id,
                         f"💀 *{name} HAS FALLEN* — Year {civ_states[name].get('year', '?')}\n"
                         f"The Great Reset claims another civilization."
                     )
                     new_state = collapse_civilization(name, civ_states[name], era)
-                    new_state["log"] = [f"Year 1: {name} is reborn from the ashes."]
                     civ_states[name] = new_state
                     era += 1
 
-            # Check for Architect decrees (applies to whichever civ is weakest)
+            # Route Architect commands: decree goes to weakest civ, events affect all
             weakest = min(CIV_NAMES, key=lambda n: civ_states[n].get("stability", 1.0))
-            pending = context.consume_decree()
-            decrees = {name: (pending if name == weakest else None) for name in CIV_NAMES}
+            pending_decree = context.consume_decree()
+            decrees = {name: (pending_decree if name == weakest else None) for name in CIV_NAMES}
 
-            # Apply pending events to the weakest civ
             event = context.consume_event()
             if event == "famine":
                 civ_states[weakest]["food_supply"] = max(0, civ_states[weakest]["food_supply"] - 2000)
+                civ_states[weakest]["stability"] = max(0.0, civ_states[weakest]["stability"] - 0.15)
             elif event == "prosperity":
                 civ_states[weakest]["food_supply"] += 3000
+                civ_states[weakest]["stability"] = min(1.0, civ_states[weakest]["stability"] + 0.10)
 
-            # Tick
+            # Manual reset
+            if context.trigger_reset:
+                context.trigger_reset = False
+                name_to_reset = weakest
+                await send_notification(bot_app, admin_id,
+                    f"⚡ *The Architect has ended {name_to_reset}.*")
+                new_state = collapse_civilization(civ_states[name_to_reset], civ_states[name_to_reset], era)
+                civ_states[name_to_reset] = new_state
+                era += 1
+
             civ_states = run_tick(civ_states, throne, decrees, era)
 
-            # Update context for /status command
-            # Combine both civs into one summary for the bot
-            combined = civ_states[CIV_NAMES[0]]
-            context.update_from_state({**combined, "year": tick})
+            # Check threshold events for each civilization
+            for name in CIV_NAMES:
+                await check_threshold_events(civ_states[name], context, bot_app, admin_id)
+
+            # Update bot context with combined world status
+            context.update_from_state({
+                **civ_states[CIV_NAMES[0]],
+                "year": tick,
+                "sovereign_ideology": " | ".join(
+                    f"{n}: {civ_states[n].get('sovereign_ideology', '')[:30]}"
+                    for n in CIV_NAMES
+                ),
+            })
 
             print_world(civ_states, throne, tick)
             tick += 1
@@ -175,17 +194,19 @@ async def run_with_telegram(reset: bool, wipe_memory: bool):
         await bot_app.shutdown()
 
 
+# ── Entry point ───────────────────────────────────────────────────────────────
+
 def main():
     parser = argparse.ArgumentParser(description="The Gilded Void v0.1")
-    parser.add_argument("--telegram", action="store_true", help="Enable Telegram interface")
-    parser.add_argument("--reset", action="store_true", help="Start fresh")
-    parser.add_argument("--wipe-memory", action="store_true", help="Also wipe ancestral memory")
+    parser.add_argument("--telegram", action="store_true")
+    parser.add_argument("--reset", action="store_true")
+    parser.add_argument("--wipe-memory", action="store_true")
     args = parser.parse_args()
 
     if args.telegram:
-        asyncio.run(run_with_telegram(args.reset, args.wipe_memory))
+        asyncio.run(run_telegram(args.reset, args.wipe_memory))
     else:
-        run_without_telegram(args.reset, args.wipe_memory)
+        run_terminal(args.reset, args.wipe_memory)
 
 
 if __name__ == "__main__":

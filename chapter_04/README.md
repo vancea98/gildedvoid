@@ -52,20 +52,14 @@ The new civilization doesn't *know* about the past. But they *feel* it.
 
 ---
 
-## What Changes in the Code
+## The Files
 
-We add two new components:
-
-**`memory_store.py`** — a wrapper around ChromaDB that handles:
-- Storing civilization summaries after collapse
-- Querying for relevant ancestral memories
-
-**`great_reset.py`** — handles the collapse event:
-- Summarizes the civilization's history using the AI
-- Stores the summary in ChromaDB
-- Resets the world state with ancestral trauma injected
-
-We also update `first_agent.py`'s prompt to include ancestral memories when they exist.
+| File | What it does |
+|---|---|
+| `memory_store.py` | ChromaDB wrapper — store collapses, query for trauma |
+| `great_reset.py` | Civilization death handler — summarize → store → seed new era |
+| `nodes.py` | Memory-aware Sovereign node (reused by chapters 05 and 06) |
+| `run.py` | Single-civilization simulation loop with Great Reset handling |
 
 ---
 
