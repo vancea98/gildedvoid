@@ -35,11 +35,10 @@ Each chapter builds on the last. Don't skip ahead.
 |---|---|---|
 | [01](./chapter_01/README.md) | Environment Setup | Virtual envs, pip, project structure |
 | [02](./chapter_02/README.md) | Your First Agent | LangGraph basics, nodes, state |
-| [03](./chapter_03/README.md) | The Infinite Loop | Cyclic graphs, the simulation tick |
-| [04](./chapter_04/README.md) | Surviving Reboots | Checkpointers, persistence |
-| [05](./chapter_05/README.md) | Ancestral Memory | ChromaDB, vector search, trauma vectors |
-| [06](./chapter_06/README.md) | The Telegram Bridge | Async bots, divine decrees, HITL |
-| [07](./chapter_07/README.md) | The Gilded Void v0.1 | Bringing it all together |
+| [03](./chapter_03/README.md) | The Infinite Loop + Persistence | Cyclic graphs, the simulation tick, Checkpointers and persistence |
+| [05](./chapter_04/README.md) | Ancestral Memory | ChromaDB, vector search, trauma vectors |
+| [06](./chapter_05/README.md) | The Telegram Bridge | Async bots, divine decrees, HITL |
+| [07](./chapter_06/README.md) | The Gilded Void v0.1 | Bringing it all together |
 
 ---
 
